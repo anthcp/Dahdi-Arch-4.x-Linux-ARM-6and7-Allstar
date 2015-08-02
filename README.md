@@ -3,11 +3,11 @@ Dahdi-linux-allstar-RasPi2
 
 Package for Dahdi Arch kernel drivers for Allstar Asterisk version from this repo.
 Running "makepkg" as a non root user will create a Dahdi package for Arch Linux 4.x ( only tested for <4.1) 
-This package contains the Allstar patch  (thanks to Jim Duuuude) to allow dahdi to work with Allstars version of Asterisk from this repo.
-It works for Arch ARM7 for Raspberry PI model 2.
+
+It works for Arch ARM7 for Raspberry PI model 2. (for other ARM7 devices, just select the correct linux-headers when setting up the development enviroment)
 
 It will download the dahdi source code if required...
-After package install a reboot will be required.
+After package install a reboot will be required to initalze the dadhi although you can test this by doing "sudo modprobe dahdi" and then doing "ls /dev/dahdi/*" which should show the dahdi devices.
 
 Detailed procedure, assuming you have arch linux already running...
 
