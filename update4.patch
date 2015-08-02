@@ -1,0 +1,226 @@
+diff -rupN dahdi-linux-complete-2.9.1.1+2.9.1/Makefile dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/Makefile
+--- dahdi-linux-complete-2.9.1.1+2.9.1/Makefile	2014-03-31 19:25:32.000000000 +0000
++++ dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/Makefile	2015-07-26 05:09:40.029334598 +0000
+@@ -7,7 +7,7 @@
+ 
+ all:
+ 	$(MAKE) -C linux all
+-	(cd tools && [ -f config.status ] || ./configure --with-dahdi=../linux)
++	(cd tools && [ -f config.status ] || ./configure --with-dahdi=../linux --sbindir=/usr/bin)
+ 	$(MAKE) -C tools all
+ 
+ clean:
+diff -rupN dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/dahdi-base.c dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/dahdi-base.c
+--- dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/dahdi-base.c	2014-03-31 19:25:38.000000000 +0000
++++ dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/dahdi-base.c	2015-07-26 05:24:44.454951891 +0000
+@@ -51,6 +51,7 @@
+ #include <linux/delay.h>
+ #include <linux/mutex.h>
+ #include <linux/ktime.h>
++#include <linux/slab.h>
+ 
+ #if defined(HAVE_UNLOCKED_IOCTL) && defined(CONFIG_BKL)
+ #include <linux/smp_lock.h>
+@@ -97,7 +98,7 @@
+ #define chan_to_netdev(h) ((h)->hdlcnetdev->netdev)
+ 
+ /* macro-oni for determining a unit (channel) number */
+-#define	UNIT(file) MINOR(file->f_dentry->d_inode->i_rdev)
++#define	UNIT(file) MINOR(file->f_path.dentry->d_inode->i_rdev)
+ 
+ EXPORT_SYMBOL(dahdi_transcode_fops);
+ EXPORT_SYMBOL(dahdi_init_tone_state);
+@@ -1108,7 +1109,7 @@ static void dahdi_check_conf(int x)
+ #endif
+ 
+ 	/* return if no valid conf number */
+-	if (x <= 0)
++	if ((x <= 0) || (x >= DAHDI_MAX_CONF))
+ 		return;
+ 
+ 	/* Return if there is no alias */
+@@ -1490,6 +1491,7 @@ static int dahdi_enable_hw_preechocan(st
+ 	int res;
+ 	unsigned long flags;
+ 
++	if (is_pseudo_chan(chan)) return 0;
+ 	spin_lock_irqsave(&chan->lock, flags);
+ 	if (chan->ec_factory != &hwec_factory)
+ 		res = -ENODEV;
+@@ -1516,6 +1518,7 @@ static int dahdi_enable_hw_preechocan(st
+  */
+ static void dahdi_disable_hw_preechocan(struct dahdi_chan *chan)
+ {
++	if (is_pseudo_chan(chan)) return;
+ 	if (chan->span->ops->disable_hw_preechocan)
+ 		chan->span->ops->disable_hw_preechocan(chan);
+ }
+@@ -3170,7 +3173,7 @@ static int can_open_timer(void)
+ #endif
+ }
+ 
+-static unsigned int max_pseudo_channels = 512;
++static unsigned int max_pseudo_channels = 2500;
+ static unsigned int num_pseudo_channels;
+ 
+ /**
+@@ -7900,6 +7903,28 @@ static inline void __dahdi_process_getau
+ 				real channel's last sample. */
+ 			  /* if to talk on conf */
+ 			if (ms->confmode & DAHDI_CONF_PSEUDO_TALKER) {
++#ifndef        OLD_BROKEN_CODE
++	                        /* Store temp value */
++                        	memcpy(k, getlin, DAHDI_CHUNKSIZE * sizeof(short));
++                        	/* Add conf value */
++                        	ACSS(k, conf_sums_next[ms->_confn]);
++                        	/* save last one */
++                        	memcpy(ms->conflast2, ms->conflast1, DAHDI_CHUNKSIZE * sizeof(short));
++                        	memcpy(ms->conflast1, k, DAHDI_CHUNKSIZE * sizeof(short));
++                        	/*  get amount actually added */
++                        	SCSS(ms->conflast1, conf_sums_next[ms->_confn]);
++                        	/* Really add in new value */
++                        	ACSS(conf_sums_next[ms->_confn], ms->conflast1);
++                        	/* add in stuff from pseudo-receive, too */
++                        	ACSS(getlin,ms->putlin_pseudo);
++                        	memcpy(ms->getlin, getlin, DAHDI_CHUNKSIZE * sizeof(short));
++                        } else {
++                               memset(ms->conflast1, 0, DAHDI_CHUNKSIZE * sizeof(short));
++                               memset(ms->conflast2, 0, DAHDI_CHUNKSIZE * sizeof(short));
++                               memset(getlin, 0, DAHDI_CHUNKSIZE * sizeof(short));
++                        }
++#else
++#error DONT USE THIS, ITS BROKEN
+ 				/* Store temp value */
+ 				memcpy(k, getlin, DAHDI_CHUNKSIZE * sizeof(short));
+ 				/* Add conf value */
+@@ -7916,6 +7941,7 @@ static inline void __dahdi_process_getau
+ 				memset(ms->conflast2, 0, DAHDI_CHUNKSIZE * sizeof(short));
+ 			}
+ 			memset(getlin, 0, DAHDI_CHUNKSIZE * sizeof(short));
++#endif
+ 			txb[0] = DAHDI_LIN2X(0, ms);
+ 			memset(txb + 1, txb[0], DAHDI_CHUNKSIZE - 1);
+ 			/* fall through to normal conf mode */
+@@ -8865,7 +8891,12 @@ static inline void __dahdi_process_putau
+ 	}
+ 	for (x=0;x<DAHDI_CHUNKSIZE;x++) {
+ 		rxb[x] = ms->rxgain[rxb[x]];
+-		putlin[x] = DAHDI_XLAW(rxb[x], ms);
++#ifndef        OLD_BROKEN_CODE
++               putlin[x] = ms->putlin_pseudo[x] = DAHDI_XLAW(rxb[x], ms);
++#else
++#error DONT USE THIS, ITS BROKEN
++                putlin[x] = DAHDI_XLAW(rxb[x], ms);
++#endif
+ 	}
+ 
+ #ifndef CONFIG_DAHDI_NO_ECHOCAN_DISABLE
+@@ -9035,8 +9066,27 @@ static inline void __dahdi_process_putau
+ 		case DAHDI_CONF_CONF:	/* Normal conference mode */
+ 			if (is_pseudo_chan(ms)) /* if a pseudo-channel */
+ 			   {
++#ifndef        OLD_BROKEN_CODE
++                               if (ms->confmode & DAHDI_CONF_TALKER) {
++                                       /* Store temp value */
++                                       memcpy(k, putlin, DAHDI_CHUNKSIZE * sizeof(short));
++                                       /* Add conf value */
++                                       ACSS(k, conf_sums_next[ms->_confn]);
++                                       /*  get amount actually added */
++                                       memcpy(ms->conflast, k, DAHDI_CHUNKSIZE * sizeof(short));
++                                       SCSS(ms->conflast, conf_sums_next[ms->_confn]);
++                                       /* Really add in new value */
++                                       ACSS(conf_sums_next[ms->_confn], ms->conflast);
++                               } else memset(ms->conflast, 0, DAHDI_CHUNKSIZE * sizeof(short));
++#endif
+ 				if (ms->confmode & DAHDI_CONF_LISTENER) {
+ 					/* Subtract out last sample written to conf */
++#ifndef        OLD_BROKEN_CODE
++                                       SCSS(putlin, ms->conflast2);
++#else
++#error DONT USE THIS, ITS BROKEN
++                                        SCSS(putlin, ms->conflast);
++#endif
+ 					SCSS(putlin, ms->conflast);
+ 					/* Add in conference */
+ 					ACSS(putlin, conf_sums[ms->_confn]);
+@@ -9111,7 +9161,12 @@ static void __putbuf_chunk(struct dahdi_
+ 	int oldbuf;
+ 	int eof=0;
+ 	int abort=0;
+-	int res;
++#ifndef        OLD_BROKEN_CODE
++       int res = 0;
++#else
++#error DONT USE THIS, ITS BROKEN
++        int res;
++#endif
+ 	int left, x;
+ 
+ 	while(bytes) {
+diff -rupN dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/card_pri.c dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/card_pri.c
+--- dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/card_pri.c	2014-03-31 19:25:38.000000000 +0000
++++ dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/card_pri.c	2015-07-26 06:42:05.153164624 +0000
+@@ -2396,11 +2396,11 @@ static DEVICE_ATTR_WRITER(pri_protocol_s
+ 			buf, i);
+ 		return -EINVAL;
+ 	}
+-	if (strnicmp(buf, "E1", 2) == 0)
++	if (strncasecmp(buf, "E1", 2) == 0)
+ 		new_protocol = PRI_PROTO_E1;
+-	else if (strnicmp(buf, "T1", 2) == 0)
++	else if (strncasecmp(buf, "T1", 2) == 0)
+ 		new_protocol = PRI_PROTO_T1;
+-	else if (strnicmp(buf, "J1", 2) == 0)
++	else if (strncasecmp(buf, "J1", 2) == 0)
+ 		new_protocol = PRI_PROTO_J1;
+ 	else {
+ 		XPD_NOTICE(xpd,
+diff -rupN dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/xpd.h dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/xpd.h
+--- dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/xpd.h	2014-03-31 19:25:38.000000000 +0000
++++ dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/xpp/xpd.h	2015-07-26 05:09:40.079334354 +0000
+@@ -39,6 +39,7 @@
+ #include <linux/moduleparam.h>
+ #endif /* __KERNEL__ */
+ 
++#include <linux/slab.h>
+ #include <dahdi/kernel.h>
+ 
+ #ifdef __KERNEL__
+diff -rupN dahdi-linux-complete-2.9.1.1+2.9.1/linux/include/dahdi/kernel.h dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/include/dahdi/kernel.h
+--- dahdi-linux-complete-2.9.1.1+2.9.1/linux/include/dahdi/kernel.h	2014-03-31 19:25:38.000000000 +0000
++++ dahdi-linux-allstar-RasPi2/src/dahdi-linux-complete-2.9.1.1+2.9.1/linux/include/dahdi/kernel.h	2015-07-26 05:37:15.161905669 +0000
+@@ -546,6 +546,9 @@ struct dahdi_chan {
+ 	short	getlin[DAHDI_MAX_CHUNKSIZE];			/*!< Last transmitted samples */
+ 	unsigned char getraw[DAHDI_MAX_CHUNKSIZE];		/*!< Last received raw data */
+ 	short	putlin[DAHDI_MAX_CHUNKSIZE];			/*!< Last received samples */
++#ifndef        OLD_BROKEN_CODE
++        short   putlin_pseudo[DAHDI_MAX_CHUNKSIZE];    /* Last received samples -- pseudo channel */
++#endif
+ 	unsigned char putraw[DAHDI_MAX_CHUNKSIZE];		/*!< Last received raw data */
+ 	short	conflast[DAHDI_MAX_CHUNKSIZE];			/*!< Last conference sample -- base part of channel */
+ 	short	conflast1[DAHDI_MAX_CHUNKSIZE];		/*!< Last conference sample  -- pseudo part of channel */
+@@ -1490,7 +1493,9 @@ void dahdi_pci_disable_link_state(struct
+ #define list_first_entry(ptr, type, member) \
+ 	list_entry((ptr)->next, type, member)
+ 
+-#ifndef __packed
++#define strncasecmp strnicmp
++
++#ifndef __packed 
+ #define __packed  __attribute__((packed))
+ #endif 
+ 
+@@ -1648,9 +1653,11 @@ struct mutex {
+ 				chan_printk(DEBUG, "-" #bits, chan, \
+ 					"%s: " fmt, __func__, ## __VA_ARGS__)))
+ #define dahdi_dev_dbg(bits, dev, fmt, ...)         \
+-			((void)((debug & (DAHDI_DBG_ ## bits)) && \
++		do { if (debug & (DAHDI_DBG_ ## bits)) { \
+ 			dev_printk(KERN_DEBUG, dev, \
+-			"DBG-%s(%s): " fmt, #bits, __func__, ## __VA_ARGS__)))
++			"DBG-%s(%s): " fmt, #bits, __func__, ## __VA_ARGS__); \
++		} } while (0)
++
+ #endif /* DAHDI_PRINK_MACROS_USE_debug */
+ 
+ #endif /* _DAHDI_KERNEL_H */
