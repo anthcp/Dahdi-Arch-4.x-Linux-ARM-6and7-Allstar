@@ -21,15 +21,17 @@ Detailed procedure, assuming you have arch linux already running...
 
 5. Switch to this user e.g su - test
 
-6. Download this package e.g git clone https://github.com/anthcp/dahdi-linux-allstar-RasPi2.git
+6. Download this package e.g git clone https://github.com/anthcp/Dahdi-Arch-4.x-Linux-ARM-6and7-Allstar.git
 
-7. Change directory to the git directory e.g cd dahdi-linux-allstar-RasPi2
+7. Change directory to the git directory e.g cd Dahdi-Arch-4.x-Linux-ARM-6and7-Allstar
 
 8. Run the makepkg command e.g makepkg
 
-9. On successfull completeion of makepkg, type exit, cd to /home/test/dahdi-linux-allstar-RasPi2 and run pacman --force -U dahdi-allstar-2.9.1.1-2-armv7h.pkg.tar.xz 
+9. On successfull completeion of makepkg, type exit, cd to /home/test/Dahdi-Arch-4.x-Linux-ARM-6and7-Allstar and run pacman --force -U dahdi-allstar-2.9.1.1-2-armv7h.pkg.tar.xz 
 
-Will update as needed.
+10. Allstar is now installed...
+
+Will update as required.
 
 Anthony, VK2ACP
 
