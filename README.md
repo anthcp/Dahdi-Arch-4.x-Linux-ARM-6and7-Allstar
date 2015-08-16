@@ -1,4 +1,4 @@
-Dahdi-linux-allstar-RasPi2
+Dahdi-Arch-4.x-Linux-ARM-6and7-allstar
 ======================
 
 Package for Dahdi Arch kernel drivers for Allstar Asterisk version from this repo.
