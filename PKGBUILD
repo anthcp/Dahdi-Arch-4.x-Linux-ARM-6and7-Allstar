@@ -7,10 +7,10 @@ pkgver=2.9.1.1
 pkgver_tools=2.9.1
 pkgrel=2
 pkgdesc="DAHDI drivers for Asterisk with allstar mods for Raspberry PI"
-arch=('armv7h')
+arch=('armv6h' 'armv7h')
 url="http://www.asterisk.org/"
 license=('GPL2')
-depends=('linux>=4.0' 'linux<4.1' 'libusb' 'perl' 'alsa-lib' 'alsa-oss')
+depends=('linux>=4.0' 'linux<4.2' 'libusb' 'perl' 'alsa-lib' 'alsa-oss')
 makedepends=('binutils' 'autoconf' 'linux-headers>=4.0' 'libnewt' 'libusb-compat')
 conflicts=('zaptel' 'dahdi')
 install="${pkgname}.install"
