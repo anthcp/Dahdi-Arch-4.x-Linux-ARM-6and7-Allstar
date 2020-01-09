@@ -16,13 +16,16 @@ conflicts=('zaptel' 'dahdi')
 install="${pkgname}.install"
 source=("http://downloads.asterisk.org/pub/telephony/dahdi-linux-complete/releases/dahdi-linux-complete-${pkgver}+${pkgver_tools}.tar.gz"
 	"update4.patch"
-	"allstar.conf")
+	"allstar.conf"
+	"dummy.patch")
 sha1sums=('8a1b99aec5fb5b05f443aba8ce96d732703ee67b'
           'e415229d1b9a380e7fa9c4f2b31d94578ac9c609'
-          '256db4f27f9ddd40e18f860e59d744f99e4bf94d')
+	  '6a29c00986ae7e7f1fe35bb1dbb9664c5bcc5ec4'
+	  '0c4c2dc4179a63f5e4564b2298bc0f1865d596d6')
 build() {
   cd "${srcdir}/dahdi-linux-complete-${pkgver}+${pkgver_tools}"
   patch -p1 -i "${srcdir}/update4.patch"
+  patch -p0 "${srcdir}/dahdi-linux-complete-2.9.1.1+2.9.1/linux/drivers/dahdi/Kbuild" <${srcdir}/dummy.patch
   make DESTDIR="${pkgdir}" all
 }
 

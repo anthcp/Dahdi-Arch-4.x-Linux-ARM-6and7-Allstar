@@ -1,0 +1,4 @@
+2c2
+< #obj-$(DAHDI_BUILD_ALL)$(CONFIG_DAHDI_DUMMY)		+= dahdi_dummy.o
+---
+> obj-$(DAHDI_BUILD_ALL)$(CONFIG_DAHDI_DUMMY)		+= dahdi_dummy.o
